@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import base64
 from pathlib import Path
+from typing import Iterator
 
 import streamlit as st
 from openai import OpenAI
@@ -21,6 +21,27 @@ EMBEDDING_K = 30
 RRF_K = 60
 
 
+def stream_answer(
+    content: list[dict],
+    model: str,
+) -> Iterator[str]:
+    client = OpenAI()
+
+    with client.responses.stream(
+        model=model,
+        input=[
+            {
+                "role": "user",
+                "content": content,
+            }
+        ],
+        max_output_tokens=700,
+    ) as stream:
+        for event in stream:
+            if event.type == "response.output_text.delta":
+                yield event.delta
+
+
 def answer_question_for_ui(
     query: str,
     index_dir: str,
@@ -29,7 +50,7 @@ def answer_question_for_ui(
     keyword_k: int,
     embedding_k: int,
     rrf_k: int,
-) -> tuple[str, list[dict]]:
+) -> tuple[Iterator[str], list[dict]]:
     results = get_hybrid_results(
         index_dir=index_dir,
         query=query,
@@ -53,6 +74,7 @@ def answer_question_for_ui(
 6. evidence 要引用投影片中能支持答案的重點，不要編造。
 7. 如果問題在問圖片中的動漫、卡通、遊戲等虛構角色，可以根據投影片圖片辨識角色名稱。
 8. 如果使用者把 NLP / LDA 等相近詞打錯，請根據檢索到的最相關投影片判斷，但答案仍然只能根據投影片文字與圖片。
+9. 請務必使用與「User Question」完全相同的語言來撰寫你的<答案>與<evidence>。
 
 User Question:
 {query}
@@ -97,20 +119,7 @@ Retrieved Slides:
             }
         )
 
-    client = OpenAI()
-
-    response = client.responses.create(
-        model=model,
-        input=[
-            {
-                "role": "user",
-                "content": content,
-            }
-        ],
-        max_output_tokens=700,
-    )
-
-    return response.output_text, results
+    return stream_answer(content, model), results
 
 
 def show_retrieved_slide(item: dict, index_dir: str) -> None:
@@ -187,8 +196,8 @@ def main() -> None:
     if submitted:
         st.markdown("---")
 
-        with st.spinner("正在檢索投影片並產生答案..."):
-            answer, results = answer_question_for_ui(
+        with st.spinner("正在檢索投影片..."):
+            answer_stream, results = answer_question_for_ui(
                 query=query,
                 index_dir=INDEX_DIR,
                 model=model,
@@ -199,7 +208,13 @@ def main() -> None:
             )
 
         st.subheader("答案")
-        st.markdown(answer)
+
+        answer_placeholder = st.empty()
+        full_answer = ""
+
+        for chunk in answer_stream:
+            full_answer += chunk
+            answer_placeholder.markdown(full_answer)
 
         st.subheader("Retrieved Slides")
 
