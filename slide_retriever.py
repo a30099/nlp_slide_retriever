@@ -10,6 +10,7 @@ import joblib
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+<<<<<<< HEAD
 class IndexCache:
     def __init__(self, index_dir):
         index_path = Path(index_dir)
@@ -42,6 +43,8 @@ class IndexCache:
             (slide["filename"], slide["page"]): idx
             for idx, slide in enumerate(self.slides)
         }
+=======
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
 
 def clean_text(text: str) -> str:
     return " ".join(text.replace("\x00", " ").split())
@@ -425,13 +428,18 @@ def hybrid_search_index(
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
 def get_hybrid_results(
+<<<<<<< HEAD
     cache: IndexCache,
+=======
+    index_dir: str,
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
     query: str,
     top_k: int,
     keyword_k: int,
     embedding_k: int,
     rrf_k: int,
 ) -> list[dict]:
+<<<<<<< HEAD
     slides = cache.slides
     vectorizer = cache.vectorizer
     tfidf_matrix = cache.tfidf_matrix
@@ -440,10 +448,23 @@ def get_hybrid_results(
     page_lookup = cache.page_lookup
 
     # --- 1. 計算 Keyword (TF-IDF) 分數 ---
+=======
+    index_path = Path(index_dir)
+
+    slides = json.loads((index_path / "slides.json").read_text(encoding="utf-8"))
+    vectorizer = joblib.load(index_path / "tfidf_vectorizer.joblib")
+    tfidf_matrix = joblib.load(index_path / "tfidf_matrix.joblib")
+
+    embedding_matrix = np.load(index_path / "embedding_matrix.npy")
+    embedding_meta = json.loads((index_path / "embedding_meta.json").read_text(encoding="utf-8"))
+    embedding_model = embedding_meta["model"]
+
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
     query_tfidf = vectorizer.transform([query])
     keyword_scores = (tfidf_matrix @ query_tfidf.T).toarray().ravel()
     keyword_indices = np.argsort(keyword_scores)[::-1][:keyword_k]
 
+<<<<<<< HEAD
     # --- 2. 計算 Embedding 分數 ---
     from openai import OpenAI
     client = OpenAI()
@@ -455,6 +476,12 @@ def get_hybrid_results(
     embedding_indices = np.argsort(embedding_scores)[::-1][:embedding_k]
 
     # --- 3. 結合 RRF (Reciprocal Rank Fusion) 分數 ---
+=======
+    query_embedding = embed_query(query=query, model=embedding_model)
+    embedding_scores = embedding_matrix @ query_embedding
+    embedding_indices = np.argsort(embedding_scores)[::-1][:embedding_k]
+
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
     final_scores: dict[int, float] = {}
     keyword_ranks: dict[int, int] = {}
     embedding_ranks: dict[int, int] = {}
@@ -469,14 +496,25 @@ def get_hybrid_results(
         final_scores[idx] = final_scores.get(idx, 0.0) + 1.0 / (rrf_k + rank)
         embedding_ranks[idx] = rank
 
+<<<<<<< HEAD
     # 取出前 top_k 個作為種子索引
+=======
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
     seed_indices = sorted(
         final_scores.keys(),
         key=lambda idx: final_scores[idx],
         reverse=True,
     )[:top_k]
 
+<<<<<<< HEAD
     # --- 4. 展開前後頁邏輯 ---
+=======
+    page_lookup = {
+        (slide["filename"], slide["page"]): idx
+        for idx, slide in enumerate(slides)
+    }
+
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
     expanded_indices = []
     seen_indices = set()
 
@@ -493,9 +531,13 @@ def get_hybrid_results(
             if candidate_idx is not None and candidate_idx not in seen_indices:
                 expanded_indices.append(candidate_idx)
                 seen_indices.add(candidate_idx)
+<<<<<<< HEAD
                 
     MAX_SLIDES = 5
     expanded_indices = expanded_indices[:MAX_SLIDES]
+=======
+
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
     results = []
 
     for rank, idx in enumerate(expanded_indices, start=1):
@@ -551,9 +593,15 @@ def answer_question(
     model: str,
 ) -> None:
     from openai import OpenAI
+<<<<<<< HEAD
     cache = IndexCache(index_dir)
     results = get_hybrid_results(
         cache=cache,
+=======
+
+    results = get_hybrid_results(
+        index_dir=index_dir,
+>>>>>>> c48f20ded99f9f10a412d9341ce80e85b9b30ede
         query=query,
         top_k=top_k,
         keyword_k=keyword_k,
